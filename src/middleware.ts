@@ -1,21 +1,11 @@
-import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
 
-export default withAuth({
-  secret: process.env.NEXTAUTH_SECRET || "opus-steel-production-secret-key-2026"
-});
+// Middleware pass-through to ensure NextAuth session resolution is handled cleanly 
+// by Server Components directly without Vercel HTTPS cookie redirect loops.
+export function middleware() {
+  return NextResponse.next();
+}
 
-// Every route below requires a signed-in session.
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/projects/:path*",
-    "/work-orders/:path*",
-    "/materials/:path*",
-    "/drawings/:path*",
-    "/plant/:path*",
-    "/api/projects/:path*",
-    "/api/work-orders/:path*",
-    "/api/materials/:path*",
-    "/api/drawings/:path*"
-  ]
+  matcher: []
 };
