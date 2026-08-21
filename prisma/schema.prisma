@@ -1,0 +1,522 @@
+// OPUS Steel Construction LLC — Production Management Platform
+// Prisma schema (SQLite local dev version).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================
+// AUTH / RBAC  (Phase 1)
+// =========================================================
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("OFFICE")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdProjects      Project[]              @relation("ProjectCreatedBy")
+  createdWorkOrders    WorkOrder[]             @relation("WorkOrderCreatedBy")
+  uploadedDrawings     DrawingRevision[]       @relation("DrawingUploadedBy")
+  materialTransactions MaterialTransaction[]   @relation("MaterialTxPerformedBy")
+  productionEntries    ProductionEntry[]       @relation("ProductionCreatedBy")
+  qcInspections        QcInspection[]          @relation("QcInspector")
+  dispatches           Dispatch[]              @relation("DispatchRecordedBy")
+  scrapRecords         ScrapRecord[]           @relation("ScrapRecordedBy")
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+
+  @@index([role])
+}
+
+// =========================================================
+// CUSTOMER  (Phase 1)
+// =========================================================
+
+model Customer {
+  id            String   @id @default(uuid())
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  trn           String?
+  notes         String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  projects Project[]
+
+  @@index([name])
+}
+
+// =========================================================
+// PROJECT  (Phase 1)
+// =========================================================
+
+model Project {
+  id                    String        @id @default(uuid())
+  projectNumber         String        @unique // PRJ-2026-00001
+  name                  String
+  customerId            String
+  customer              Customer      @relation(fields: [customerId], references: [id])
+  customerReference     String?
+  location              String?
+  projectManager         String?
+  startDate             DateTime?
+  targetCompletionDate  DateTime?
+  status                String        @default("PLANNING")
+  description           String?
+  notes                 String?
+  createdById           String
+  createdBy             User          @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  workOrders   WorkOrder[]
+  drawings     Drawing[]
+  materialTx   MaterialTransaction[]
+  production   ProductionEntry[]
+  scrapRecords ScrapRecord[]
+  qcInspections QcInspection[]
+  dispatches   Dispatch[]
+  attachments  Attachment[]
+
+  @@index([projectNumber])
+  @@index([status])
+}
+
+// =========================================================
+// WORK ORDER  (Phase 1) — the central operational record
+// =========================================================
+
+model WorkOrder {
+  id                    String          @id @default(uuid())
+  workOrderNumber       String          @unique // WO-2026-00001
+  projectId             String
+  project               Project         @relation(fields: [projectId], references: [id])
+  customerId            String
+  salesOrderNumber      String?
+  customerPoNumber      String?
+  workOrderDate         DateTime        @default(now())
+  requiredDeliveryDate  DateTime?
+  jobDescription        String?
+  priority              String          @default("NORMAL")
+  status                String          @default("DRAFT")
+  productionManagerId   String?
+  remarks               String?
+  releasedAt            DateTime?
+  createdById           String
+  createdBy             User            @relation("WorkOrderCreatedBy", fields: [createdById], references: [id])
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  items                WorkOrderItem[]
+  drawings             Drawing[]
+  materialTx           MaterialTransaction[]
+  production           ProductionEntry[]
+  scrapRecords         ScrapRecord[]
+  qcInspections        QcInspection[]
+  dispatches           Dispatch[]
+  attachments          Attachment[]
+  auditLogs            AuditLog[]
+
+  @@index([workOrderNumber])
+  @@index([status])
+  @@index([projectId])
+}
+
+model WorkOrderItem {
+  id               String   @id @default(uuid())
+  workOrderId      String
+  workOrder        WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  itemCode         String?
+  description      String
+  drawingNumber    String?
+  drawingRevision  String?
+  plannedQuantity  Decimal
+  unit             String   @default("Nos")
+  plannedWeightKg  Decimal?
+  remarks          String?
+  createdAt        DateTime @default(now())
+
+  @@index([workOrderId])
+}
+
+// =========================================================
+// DRAWINGS & DOCUMENTS  (Phase 1) — revision history retained
+// =========================================================
+
+model Drawing {
+  id            String       @id @default(uuid())
+  drawingNumber String       // e.g. DWG-2026-00001 — shared across revisions
+  drawingTitle  String
+  projectId     String?
+  project       Project?     @relation(fields: [projectId], references: [id])
+  workOrderId   String?
+  workOrder     WorkOrder?   @relation(fields: [workOrderId], references: [id])
+  documentType  String
+  remarks       String?
+  createdAt     DateTime     @default(now())
+
+  revisions DrawingRevision[]
+
+  @@index([drawingNumber])
+  @@index([projectId])
+  @@index([workOrderId])
+}
+
+// Every revision is a new, immutable row — old revisions are never overwritten.
+model DrawingRevision {
+  id           String         @id @default(uuid())
+  drawingId    String
+  drawing      Drawing        @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  revision     String         // "00", "01", "02" ...
+  status       String         @default("ISSUED")
+  fileKey      String         // object storage key
+  fileName     String
+  uploadedById String
+  uploadedBy   User           @relation("DrawingUploadedBy", fields: [uploadedById], references: [id])
+  uploadDate   DateTime       @default(now())
+  remarks      String?
+
+  @@unique([drawingId, revision])
+  @@index([drawingId])
+}
+
+// =========================================================
+// MATERIAL MASTER & INVENTORY  (Phase 1/2)
+// =========================================================
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  materials            Material[]
+  materialTransactions MaterialTransaction[]
+}
+
+model Material {
+  id               String       @id @default(uuid())
+  materialCode     String       @unique // MAT-2026-00001
+  materialName     String
+  materialType     String
+  customTypeLabel  String?      // used when materialType = OTHER
+  grade            String?
+  size             String?
+  thicknessMm      Decimal?
+  lengthMm         Decimal?
+  widthMm          Decimal?
+  weightPerUnitKg  Decimal?
+  unit             String       @default("KG")
+  supplierId       String?
+  supplier         Supplier?    @relation(fields: [supplierId], references: [id])
+  active           Boolean      @default(true)
+  notes            String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  transactions      MaterialTransaction[]
+  productionUsage   ProductionMaterialUsage[]
+  scrapRecords      ScrapRecord[]
+
+  @@index([materialCode])
+  @@index([materialType])
+}
+
+// Stock is DERIVED from this ledger — never written to directly.
+model MaterialTransaction {
+  id             String         @id @default(uuid())
+  materialId     String
+  material       Material       @relation(fields: [materialId], references: [id])
+  projectId      String?
+  project        Project?       @relation(fields: [projectId], references: [id])
+  workOrderId    String?
+  workOrder      WorkOrder?     @relation(fields: [workOrderId], references: [id])
+  txType         String
+  quantity       Decimal
+  unit           String
+  weightKg       Decimal?
+  heatNumber     String?
+  lotNumber      String?
+  supplierId     String?
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  storeLocation  String?
+  date           DateTime       @default(now())
+  performedById  String
+  performedBy    User           @relation("MaterialTxPerformedBy", fields: [performedById], references: [id])
+  remarks        String?
+  reversalOfId   String?        // points to the tx this one reverses, if any
+  createdAt      DateTime       @default(now())
+
+  @@index([materialId])
+  @@index([workOrderId])
+  @@index([heatNumber])
+  @@index([txType])
+}
+
+// =========================================================
+// PROCESS MASTER  (Phase 2)
+// =========================================================
+
+model Process {
+  id        String  @id @default(uuid())
+  code      String  @unique
+  name      String
+  department String?
+  sequence  Int     @default(0)
+  active    Boolean @default(true)
+
+  productionEntries ProductionEntry[]
+}
+
+// =========================================================
+// PRODUCTION  (Phase 2) — actuals only; never edits planned data
+// =========================================================
+
+model ProductionEntry {
+  id                  String   @id @default(uuid())
+  entryNumber         String   @unique // PE-2026-00001
+  workOrderId         String
+  workOrder           WorkOrder @relation(fields: [workOrderId], references: [id])
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id])
+  productionDate      DateTime @default(now())
+  shift               String?
+  processId           String?
+  process              Process? @relation(fields: [processId], references: [id])
+  operator            String?
+  machine             String?
+  completedQuantity   Decimal
+  rejectedQuantity    Decimal  @default(0)
+  reworkQuantity      Decimal  @default(0)
+  steelUsedKg         Decimal  @default(0)
+  scrapKg             Decimal  @default(0)
+  startTime            DateTime?
+  endTime              DateTime?
+  remarks             String?
+  createdById         String
+  createdBy           User     @relation("ProductionCreatedBy", fields: [createdById], references: [id])
+  createdAt           DateTime @default(now())
+
+  materialUsage ProductionMaterialUsage[]
+  attachments   Attachment[]
+
+  @@index([workOrderId])
+  @@index([projectId])
+}
+
+// Optional finer-grained material breakdown per production entry
+model ProductionMaterialUsage {
+  id                  String          @id @default(uuid())
+  productionEntryId   String
+  productionEntry     ProductionEntry @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
+  materialId          String
+  material            Material        @relation(fields: [materialId], references: [id])
+  issuedKg            Decimal
+  usedKg              Decimal
+  scrapKg             Decimal         @default(0)
+  remainingKg         Decimal         @default(0)
+
+  @@index([productionEntryId])
+}
+
+// =========================================================
+// SCRAP / WASTAGE  (Phase 2)
+// =========================================================
+
+model ScrapRecord {
+  id            String      @id @default(uuid())
+  projectId     String
+  project       Project     @relation(fields: [projectId], references: [id])
+  workOrderId   String?
+  workOrder     WorkOrder?  @relation(fields: [workOrderId], references: [id])
+  materialId    String?
+  material      Material?   @relation(fields: [materialId], references: [id])
+  quantity      Decimal?
+  weightKg      Decimal
+  reason        String
+  processName   String?
+  date          DateTime    @default(now())
+  recordedById  String
+  recordedBy    User        @relation("ScrapRecordedBy", fields: [recordedById], references: [id])
+  remarks       String?
+
+  attachments Attachment[]
+
+  @@index([projectId])
+  @@index([workOrderId])
+}
+
+// =========================================================
+// QC / INSPECTION  (Phase 3)
+// =========================================================
+
+model QcInspection {
+  id                String   @id @default(uuid())
+  inspectionNumber  String   @unique // QC-2026-00001
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id])
+  workOrderId       String
+  workOrder         WorkOrder @relation(fields: [workOrderId], references: [id])
+  inspectionDate    DateTime @default(now())
+  inspectorId       String
+  inspector         User     @relation("QcInspector", fields: [inspectorId], references: [id])
+  inspectionType    String?
+  result            String   @default("PENDING")
+  quantityInspected Decimal
+  quantityPassed    Decimal  @default(0)
+  quantityFailed    Decimal  @default(0)
+  reworkRequired    Boolean  @default(false)
+  comments          String?
+  createdAt         DateTime @default(now())
+
+  defects     QcDefect[]
+  attachments Attachment[]
+
+  @@index([workOrderId])
+  @@index([result])
+}
+
+model QcDefect {
+  id             String       @id @default(uuid())
+  qcInspectionId String
+  qcInspection   QcInspection @relation(fields: [qcInspectionId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Decimal?
+  createdAt      DateTime     @default(now())
+}
+
+// =========================================================
+// DISPATCH  (Phase 3)
+// =========================================================
+
+model Dispatch {
+  id                  String   @id @default(uuid())
+  dispatchNumber      String   @unique // DSP-2026-00001
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id])
+  workOrderId         String
+  workOrder           WorkOrder @relation(fields: [workOrderId], references: [id])
+  customerId          String
+  dispatchDate        DateTime @default(now())
+  vehicleNumber       String?
+  driverName          String?
+  quantity            Decimal
+  weightKg            Decimal?
+  deliveryNoteNumber  String?
+  remarks             String?
+  recordedById        String
+  recordedBy          User     @relation("DispatchRecordedBy", fields: [recordedById], references: [id])
+  createdAt           DateTime @default(now())
+
+  items       DispatchItem[]
+  attachments Attachment[]
+
+  @@index([workOrderId])
+}
+
+model DispatchItem {
+  id                 String   @id @default(uuid())
+  dispatchId         String
+  dispatch           Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  workOrderItemId    String?
+  description        String
+  quantityDispatched Decimal
+}
+
+// =========================================================
+// ATTACHMENTS  (Phase 1) — generic, polymorphic-by-FK
+// =========================================================
+
+model Attachment {
+  id              String   @id @default(uuid())
+  fileKey         String
+  fileName        String
+  mimeType        String?
+  sizeBytes       Int?
+  projectId       String?
+  project         Project? @relation(fields: [projectId], references: [id])
+  workOrderId     String?
+  workOrder       WorkOrder? @relation(fields: [workOrderId], references: [id])
+  productionEntryId String?
+  productionEntry ProductionEntry? @relation(fields: [productionEntryId], references: [id])
+  scrapRecordId   String?
+  scrapRecord     ScrapRecord? @relation(fields: [scrapRecordId], references: [id])
+  qcInspectionId  String?
+  qcInspection    QcInspection? @relation(fields: [qcInspectionId], references: [id])
+  dispatchId      String?
+  dispatch        Dispatch? @relation(fields: [dispatchId], references: [id])
+  uploadedAt      DateTime @default(now())
+
+  @@index([projectId])
+  @@index([workOrderId])
+}
+
+// =========================================================
+// NOTIFICATIONS  (Phase 4)
+// =========================================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+// =========================================================
+// AUDIT LOG  (Phase 4)
+// =========================================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  entityType  String   // "WorkOrder" | "MaterialTransaction" | ...
+  entityId    String
+  workOrderId String?
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id])
+  action      String   // "CREATE" | "UPDATE" | "STATUS_CHANGE" | "DELETE_ATTEMPT"
+  fieldName   String?
+  oldValue    String?
+  newValue    String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([workOrderId])
+}
+
+// =========================================================
+// NUMBERING SEQUENCES  (Phase 1) — atomic counters per prefix/year
+// =========================================================
+
+model NumberSequence {
+  id       String @id @default(uuid()) // e.g. "WO-2026"
+  prefix   String
+  year     Int
+  lastUsed Int    @default(0)
+
+  @@unique([prefix, year])
+}

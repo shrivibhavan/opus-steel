@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: opus
+      POSTGRES_PASSWORD: opus_dev_password
+      POSTGRES_DB: opus_steel
+    ports:
+      - "5432:5432"
+    volumes:
+      - opus_db_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://opus:opus_dev_password@db:5432/opus_steel?schema=public
+      NEXTAUTH_SECRET: replace-with-a-long-random-string
+      NEXTAUTH_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+
+volumes:
+  opus_db_data:
