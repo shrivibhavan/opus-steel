@@ -6,6 +6,8 @@ import { nextNumber } from "@/lib/numbering";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 const itemSchema = z.object({
   itemCode: z.string().optional(),
   description: z.string().min(1),
@@ -18,8 +20,8 @@ const itemSchema = z.object({
 });
 
 const createWorkOrderSchema = z.object({
-  projectId: z.string().uuid(),
-  customerId: z.string().uuid(),
+  projectId: z.string().min(1),
+  customerId: z.string().min(1),
   salesOrderNumber: z.string().optional(),
   customerPoNumber: z.string().optional(),
   requiredDeliveryDate: z.string().optional(),
@@ -29,8 +31,6 @@ const createWorkOrderSchema = z.object({
   items: z.array(itemSchema).min(1)
 });
 
-// Only RELEASED work orders should be visible in the plant's active queue —
-// this is enforced by filtering on status here, not by a separate table.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const scope = searchParams.get("scope"); // "plant" | null
@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
   const d = parsed.data;
 
   const workOrderNumber = await nextNumber("WO");
+  const createdById = user?.id || "seed-office";
 
   const workOrder = await prisma.workOrder.create({
     data: {
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
       priority: d.priority,
       remarks: d.remarks,
       status: "DRAFT",
-      createdById: user!.id,
+      createdById,
       items: {
         create: d.items.map((it) => ({
           itemCode: it.itemCode,
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
 
   await prisma.auditLog.create({
     data: {
-      userId: user!.id,
+      userId: createdById,
       entityType: "WorkOrder",
       entityId: workOrder.id,
       workOrderId: workOrder.id,
