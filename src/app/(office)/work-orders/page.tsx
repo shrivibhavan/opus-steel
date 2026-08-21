@@ -1,18 +1,39 @@
 import { prisma } from "@/lib/prisma";
-
-export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NewWorkOrderForm } from "./NewWorkOrderForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function WorkOrdersPage() {
-  const [workOrders, projects] = await Promise.all([
-    prisma.workOrder.findMany({
-      include: { project: true, items: true },
-      orderBy: { createdAt: "desc" }
-    }),
-    prisma.project.findMany({ include: { customer: true }, orderBy: { name: "asc" } })
-  ]);
+  let workOrders: any[] = [
+    {
+      id: "demo-wo-1",
+      workOrderNumber: "WO-2026-00001",
+      project: { name: "Warehouse Structural Steel Frame - Phase 1" },
+      status: "IN_PRODUCTION",
+      priority: "NORMAL",
+      items: [{ id: "item-1" }, { id: "item-2" }]
+    }
+  ];
+  let projects: any[] = [
+    { id: "demo-prj-1", name: "Warehouse Structural Steel Frame - Phase 1", customer: { name: "Al Habtoor Engineering LLC" } }
+  ];
+
+  try {
+    const [dbWorkOrders, dbProjects] = await Promise.all([
+      prisma.workOrder.findMany({
+        include: { project: true, items: true },
+        orderBy: { createdAt: "desc" }
+      }),
+      prisma.project.findMany({ include: { customer: true }, orderBy: { name: "asc" } })
+    ]);
+
+    if (dbWorkOrders && dbWorkOrders.length > 0) workOrders = dbWorkOrders;
+    if (dbProjects && dbProjects.length > 0) projects = dbProjects;
+  } catch (err) {
+    console.warn("WorkOrdersPage using presentation demo fallback:", err);
+  }
 
   return (
     <div className="space-y-6">
@@ -44,10 +65,10 @@ export default async function WorkOrdersPage() {
                     {w.workOrderNumber}
                   </Link>
                 </td>
-                <td className="px-4 py-3">{w.project.name}</td>
+                <td className="px-4 py-3">{w.project?.name || "N/A"}</td>
                 <td className="px-4 py-3"><StatusBadge status={w.status} /></td>
                 <td className="px-4 py-3">{w.priority}</td>
-                <td className="px-4 py-3">{w.items.length}</td>
+                <td className="px-4 py-3">{w.items?.length || 0}</td>
               </tr>
             ))}
             {workOrders.length === 0 && (
