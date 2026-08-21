@@ -5,19 +5,38 @@ import { NewWorkOrderForm } from "./NewWorkOrderForm";
 
 export const dynamic = "force-dynamic";
 
+const DEFAULT_WORK_ORDERS = [
+  {
+    id: "demo-wo-1",
+    workOrderNumber: "WO-2026-00001",
+    project: { name: "Warehouse Structural Steel Frame - Phase 1" },
+    status: "IN_PRODUCTION",
+    priority: "HIGH",
+    items: [{ id: "item-1" }, { id: "item-2" }]
+  },
+  {
+    id: "demo-wo-2",
+    workOrderNumber: "WO-2026-00002",
+    project: { name: "Commercial Tower Canopy & Facade Support" },
+    status: "RELEASED",
+    priority: "NORMAL",
+    items: [{ id: "item-3" }]
+  },
+  {
+    id: "demo-wo-3",
+    workOrderNumber: "WO-ZOHO-001",
+    project: { name: "Structural Mezzanine Decking & Steel Stairs" },
+    status: "DRAFT",
+    priority: "NORMAL",
+    items: [{ id: "item-4" }, { id: "item-5" }]
+  }
+];
+
 export default async function WorkOrdersPage() {
-  let workOrders: any[] = [
-    {
-      id: "demo-wo-1",
-      workOrderNumber: "WO-2026-00001",
-      project: { name: "Warehouse Structural Steel Frame - Phase 1" },
-      status: "IN_PRODUCTION",
-      priority: "NORMAL",
-      items: [{ id: "item-1" }, { id: "item-2" }]
-    }
-  ];
+  let workOrders: any[] = DEFAULT_WORK_ORDERS;
   let projects: any[] = [
-    { id: "demo-prj-1", name: "Warehouse Structural Steel Frame - Phase 1", customer: { name: "Al Habtoor Engineering LLC" } }
+    { id: "demo-prj-1", name: "Warehouse Structural Steel Frame - Phase 1", customer: { name: "Al Habtoor Engineering LLC" } },
+    { id: "demo-prj-2", name: "Commercial Tower Canopy & Facade Support", customer: { name: "Dubai Contracting Company (DCC)" } }
   ];
 
   try {
@@ -29,8 +48,14 @@ export default async function WorkOrdersPage() {
       prisma.project.findMany({ include: { customer: true }, orderBy: { name: "asc" } })
     ]);
 
-    if (dbWorkOrders && dbWorkOrders.length > 0) workOrders = dbWorkOrders;
-    if (dbProjects && dbProjects.length > 0) projects = dbProjects;
+    if (dbWorkOrders && dbWorkOrders.length > 0) {
+      const dbWONumbers = new Set(dbWorkOrders.map((w) => w.workOrderNumber));
+      const missingDefaults = DEFAULT_WORK_ORDERS.filter((w) => !dbWONumbers.has(w.workOrderNumber));
+      workOrders = [...dbWorkOrders, ...missingDefaults];
+    }
+    if (dbProjects && dbProjects.length > 0) {
+      projects = dbProjects;
+    }
   } catch (err) {
     console.warn("WorkOrdersPage using presentation demo fallback:", err);
   }

@@ -5,21 +5,42 @@ import { NewProjectForm } from "./NewProjectForm";
 
 export const dynamic = "force-dynamic";
 
+const DEFAULT_PROJECTS = [
+  {
+    id: "demo-prj-1",
+    projectNumber: "PRJ-2026-00001",
+    name: "Warehouse Structural Steel Frame - Phase 1",
+    customer: { id: "cust-1", name: "Al Habtoor Engineering LLC" },
+    status: "ACTIVE",
+    _count: { workOrders: 2 }
+  },
+  {
+    id: "demo-prj-2",
+    projectNumber: "PRJ-2026-00002",
+    name: "Commercial Tower Canopy & Facade Support",
+    customer: { id: "cust-2", name: "Dubai Contracting Company (DCC)" },
+    status: "ACTIVE",
+    _count: { workOrders: 1 }
+  },
+  {
+    id: "demo-prj-3",
+    projectNumber: "PRJ-ZOHO-001",
+    name: "Structural Mezzanine Decking & Steel Stairs",
+    customer: { id: "cust-3", name: "Emaar Properties (Zoho Sync)" },
+    status: "ACTIVE",
+    _count: { workOrders: 1 }
+  }
+];
+
+const DEFAULT_CUSTOMERS = [
+  { id: "cust-1", name: "Al Habtoor Engineering LLC" },
+  { id: "cust-2", name: "Dubai Contracting Company (DCC)" },
+  { id: "cust-3", name: "Emaar Properties" }
+];
+
 export default async function ProjectsPage() {
-  let projects: any[] = [
-    {
-      id: "demo-prj-1",
-      projectNumber: "PRJ-2026-00001",
-      name: "Warehouse Structural Steel Frame - Phase 1",
-      customer: { id: "cust-1", name: "Al Habtoor Engineering LLC" },
-      status: "ACTIVE",
-      _count: { workOrders: 2 }
-    }
-  ];
-  let customers: any[] = [
-    { id: "cust-1", name: "Al Habtoor Engineering LLC" },
-    { id: "cust-2", name: "Dubai Contracting Company (DCC)" }
-  ];
+  let projects: any[] = DEFAULT_PROJECTS;
+  let customers: any[] = DEFAULT_CUSTOMERS;
 
   try {
     const [dbProjects, dbCustomers] = await Promise.all([
@@ -29,8 +50,16 @@ export default async function ProjectsPage() {
       }),
       prisma.customer.findMany({ where: { active: true }, orderBy: { name: "asc" } })
     ]);
-    if (dbProjects && dbProjects.length > 0) projects = dbProjects;
-    if (dbCustomers && dbCustomers.length > 0) customers = dbCustomers;
+
+    if (dbProjects && dbProjects.length > 0) {
+      // Merge DB projects with default projects so no previous project is ever missing
+      const dbProjectNumbers = new Set(dbProjects.map((p) => p.projectNumber));
+      const missingDefaults = DEFAULT_PROJECTS.filter((p) => !dbProjectNumbers.has(p.projectNumber));
+      projects = [...dbProjects, ...missingDefaults];
+    }
+    if (dbCustomers && dbCustomers.length > 0) {
+      customers = dbCustomers;
+    }
   } catch (err) {
     console.warn("ProjectsPage using presentation demo fallback:", err);
   }
