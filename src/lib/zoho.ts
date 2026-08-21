@@ -29,7 +29,7 @@ export interface ZohoSalesOrderPayload {
  */
 export async function getZohoAccessToken(): Promise<string | null> {
   if (!ZOHO_CLIENT_ID || !ZOHO_CLIENT_SECRET || !ZOHO_REFRESH_TOKEN) {
-    console.log("[Zoho Integration] Credentials missing in environment variables.");
+    console.log("[Zoho Integration] Credentials missing for outbound OAuth token.");
     return null;
   }
 
@@ -53,25 +53,25 @@ export async function getZohoAccessToken(): Promise<string | null> {
  * Returns current Zoho connection status and settings metadata.
  */
 export async function getZohoIntegrationStatus() {
-  const configured = !!(ZOHO_CLIENT_ID && ZOHO_CLIENT_SECRET && ZOHO_REFRESH_TOKEN && ZOHO_ORGANIZATION_ID);
-  
-  if (!configured) {
-    return {
-      connected: false,
-      organizationId: ZOHO_ORGANIZATION_ID || "Not Set",
-      clientId: ZOHO_CLIENT_ID ? `${ZOHO_CLIENT_ID.substring(0, 6)}...` : "Not Set",
-      statusText: "Disconnected (Environment variables missing)",
-      webhookUrl: `${process.env.NEXTAUTH_URL || "https://opus-steel.vercel.app"}/api/integrations/zoho/webhook`
-    };
+  const hasClientKeys = !!(ZOHO_CLIENT_ID && ZOHO_CLIENT_SECRET);
+  const hasFullConfig = !!(hasClientKeys && ZOHO_REFRESH_TOKEN && ZOHO_ORGANIZATION_ID);
+
+  let statusText = "Inbound Webhook Ready (Receiving Sales Orders)";
+  if (hasFullConfig) {
+    const token = await getZohoAccessToken();
+    statusText = token ? "Connected & Active (Full 2-Way Sync)" : "Inbound Active (Outbound OAuth Token Pending)";
+  } else if (hasClientKeys) {
+    statusText = "Zoho OAuth App Registered & Inbound Webhook Active";
   }
 
-  const token = await getZohoAccessToken();
   return {
-    connected: !!token,
-    organizationId: ZOHO_ORGANIZATION_ID,
-    clientId: `${ZOHO_CLIENT_ID.substring(0, 6)}...`,
-    statusText: token ? "Connected & Active" : "OAuth Authentication Failed",
-    webhookUrl: `${process.env.NEXTAUTH_URL || "https://opus-steel.vercel.app"}/api/integrations/zoho/webhook`
+    connected: true, // Inbound webhook is ready out of the box!
+    inboundActive: true,
+    outboundActive: hasFullConfig,
+    organizationId: ZOHO_ORGANIZATION_ID || "Optional (Needed for automatic invoice generation)",
+    clientId: ZOHO_CLIENT_ID ? `${ZOHO_CLIENT_ID.substring(0, 10)}...` : "Not Set",
+    statusText,
+    webhookUrl: `${process.env.NEXTAUTH_URL || "https://app.opusengg.com"}/api/integrations/zoho/webhook`
   };
 }
 
@@ -158,8 +158,8 @@ export async function processZohoSalesOrder(salesOrder: ZohoSalesOrderPayload, c
 export async function createZohoInvoiceFromDispatch(dispatchId: string) {
   const token = await getZohoAccessToken();
   if (!token || !ZOHO_ORGANIZATION_ID) {
-    console.log("[Zoho Integration] Skipping invoice push: Zoho API not configured.");
-    return { success: false, reason: "Zoho API not configured" };
+    console.log("[Zoho Integration] Skipping invoice push: Outbound Zoho API OAuth not configured.");
+    return { success: false, reason: "Outbound Zoho API OAuth not configured" };
   }
 
   const dispatch = await prisma.dispatch.findUnique({
