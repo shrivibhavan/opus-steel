@@ -9,7 +9,8 @@ const OFFICE_NAV = [
   { href: "/projects", label: "Projects" },
   { href: "/work-orders", label: "Work Orders" },
   { href: "/drawings", label: "Drawings" },
-  { href: "/materials", label: "Materials" }
+  { href: "/materials", label: "Materials" },
+  { href: "/settings/zoho", label: "Zoho Books" }
 ];
 
 export function Sidebar({ role, userName }: { role: string; userName: string }) {
