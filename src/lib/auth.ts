@@ -4,6 +4,13 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import type { Role } from "@/types/enums";
 
+// Ensure process.env.NEXTAUTH_URL is populated for serverless & static prerendering
+if (!process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "https://app.opusengg.com";
+}
+
 const DEMO_USERS: Record<string, { id: string; name: string; email: string; role: Role }> = {
   "admin@opussteel.ae": { id: "seed-admin", name: "Admin User", email: "admin@opussteel.ae", role: "ADMIN" },
   "office@opussteel.ae": { id: "seed-office", name: "Fatima Al Mansoori", email: "office@opussteel.ae", role: "OFFICE" },
