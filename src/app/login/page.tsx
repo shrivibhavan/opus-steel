@@ -16,15 +16,20 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const res = await signIn("credentials", { email, password, redirect: false });
+    try {
+      const res = await signIn("credentials", { email, password, redirect: false });
 
-    if (res?.error) {
-      setError("Incorrect email or password.");
+      if (!res || res.error) {
+        setError("Incorrect email or password.");
+        setLoading(false);
+        return;
+      }
+      window.location.href = email.toLowerCase().includes("plant") ? "/plant" : "/dashboard";
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Sign in failed. Please check credentials and try again.");
       setLoading(false);
-      return;
     }
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (
