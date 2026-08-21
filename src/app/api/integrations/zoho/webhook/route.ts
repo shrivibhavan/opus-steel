@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processZohoSalesOrder } from "@/lib/zoho";
+import { processZohoSalesOrder, processZohoDirectProject } from "@/lib/zoho";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,27 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
 
-    // Check payload for Zoho Sales Order event
+    // 1. Check for Zoho Direct Project Creation payload
+    const project = payload.project || payload;
+    if (project && (project.project_name || project.project_id)) {
+      const result = await processZohoDirectProject(
+        {
+          project_id: project.project_id || project.id,
+          project_name: project.project_name || project.name || "Zoho Project",
+          customer_name: project.customer_name || project.account_name || "Zoho Client"
+        },
+        "seed-office"
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: "Zoho Project created in OPUS Steel",
+        projectNumber: result.projectNumber,
+        projectId: result.id
+      });
+    }
+
+    // 2. Check for Zoho Sales Order event payload
     const salesOrder = payload.salesorder || payload;
 
     if (salesOrder && (salesOrder.salesorder_id || salesOrder.salesorder_number)) {
@@ -44,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Webhook received (No sales order payload detected)"
+      message: "Webhook received (No sales order or project payload detected)"
     });
   } catch (err: any) {
     console.error("[Zoho Webhook Error]:", err);

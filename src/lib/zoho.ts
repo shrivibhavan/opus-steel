@@ -153,6 +153,44 @@ export async function processZohoSalesOrder(salesOrder: ZohoSalesOrderPayload, c
 }
 
 /**
+ * Maps a Zoho Project directly into an OPUS Steel Project.
+ */
+export async function processZohoDirectProject(
+  projectData: { project_id?: string; project_name: string; customer_name?: string },
+  createdByUserId: string
+) {
+  const customerName = projectData.customer_name || "Zoho Books Client";
+  const customerId = `zoho-cust-${customerName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
+
+  const customer = await prisma.customer.upsert({
+    where: { id: customerId },
+    create: {
+      id: customerId,
+      name: customerName,
+      notes: "Synced from Zoho Books Project Creation"
+    },
+    update: { name: customerName }
+  });
+
+  const projectNumber = `PRJ-ZOHO-${projectData.project_id || Date.now().toString().slice(-6)}`;
+  return await prisma.project.upsert({
+    where: { projectNumber },
+    create: {
+      projectNumber,
+      name: projectData.project_name,
+      customerId: customer.id,
+      status: "ACTIVE",
+      createdById: createdByUserId,
+      description: "Directly synced from Zoho Books Project Creation"
+    },
+    update: {
+      name: projectData.project_name,
+      status: "ACTIVE"
+    }
+  });
+}
+
+/**
  * Creates a Draft Invoice in Zoho Books when a Dispatch is created in OPUS Steel.
  */
 export async function createZohoInvoiceFromDispatch(dispatchId: string) {
