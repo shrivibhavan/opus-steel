@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function DrawingsPage() {
   const drawings = await prisma.drawing.findMany({
     include: { revisions: { orderBy: { revision: "desc" } }, project: true },

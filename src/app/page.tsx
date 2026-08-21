@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 import { getCurrentUser } from "@/lib/session";
 
 export default async function RootPage() {

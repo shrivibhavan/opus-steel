@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 function Card({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="card p-5">
