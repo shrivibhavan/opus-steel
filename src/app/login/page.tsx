@@ -1,44 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
-  const router = useRouter();
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const urlError = searchParams?.get("error");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    urlError === "CredentialsSignin" ? "Incorrect email or password." : null
+  );
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    try {
-      const targetUrl = email.toLowerCase().includes("plant") ? "/plant" : "/dashboard";
-      const res = await signIn("credentials", {
-        email,
-        password,
-        callbackUrl: targetUrl,
-        redirect: false
-      });
+    const targetUrl = email.toLowerCase().includes("plant") ? "/plant" : "/dashboard";
 
-      if (!res || res.error) {
-        setError("Incorrect email or password.");
-        setLoading(false);
-        return;
-      }
-
-      window.location.replace(res.url || targetUrl);
-    } catch (err) {
-      console.error("Login error:", err);
-      setError("Sign in failed. Please check credentials and try again.");
-      setLoading(false);
-    }
+    signIn("credentials", {
+      email,
+      password,
+      callbackUrl: targetUrl
+    });
   }
 
+  return (
+    <form onSubmit={handleSubmit} className="card space-y-4 p-6">
+      <div>
+        <label className="label-eyebrow mb-1 block">Email</label>
+        <input
+          className="input"
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@opussteel.ae"
+        />
+      </div>
+      <div>
+        <label className="label-eyebrow mb-1 block">Password</label>
+        <input
+          className="input"
+          type="password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
+      {error && <p className="text-sm text-signal-red">{error}</p>}
+      <button className="btn-primary w-full" disabled={loading} type="submit">
+        {loading ? "Signing in…" : "Sign in"}
+      </button>
+    </form>
+  );
+}
+
+export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-steel-900 px-4">
       <div className="w-full max-w-sm">
@@ -50,33 +72,9 @@ export default function LoginPage() {
           <p className="text-sm text-steel-400">Production Management Platform</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card space-y-4 p-6">
-          <div>
-            <label className="label-eyebrow mb-1 block">Email</label>
-            <input
-              className="input"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@opussteel.ae"
-            />
-          </div>
-          <div>
-            <label className="label-eyebrow mb-1 block">Password</label>
-            <input
-              className="input"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error && <p className="text-sm text-signal-red">{error}</p>}
-          <button className="btn-primary w-full" disabled={loading} type="submit">
-            {loading ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+        <Suspense fallback={<div className="card p-6 text-center text-steel-400">Loading...</div>}>
+          <LoginForm />
+        </Suspense>
 
         <p className="mt-4 text-center text-xs text-steel-500">
           Demo accounts: office@opussteel.ae / plant@opussteel.ae / admin@opussteel.ae — password: demo1234
