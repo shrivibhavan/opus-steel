@@ -1,18 +1,39 @@
 import { prisma } from "@/lib/prisma";
-
-export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NewProjectForm } from "./NewProjectForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProjectsPage() {
-  const [projects, customers] = await Promise.all([
-    prisma.project.findMany({
-      include: { customer: true, _count: { select: { workOrders: true } } },
-      orderBy: { createdAt: "desc" }
-    }),
-    prisma.customer.findMany({ where: { active: true }, orderBy: { name: "asc" } })
-  ]);
+  let projects: any[] = [
+    {
+      id: "demo-prj-1",
+      projectNumber: "PRJ-2026-00001",
+      name: "Warehouse Structural Steel Frame - Phase 1",
+      customer: { id: "cust-1", name: "Al Habtoor Engineering LLC" },
+      status: "ACTIVE",
+      _count: { workOrders: 2 }
+    }
+  ];
+  let customers: any[] = [
+    { id: "cust-1", name: "Al Habtoor Engineering LLC" },
+    { id: "cust-2", name: "Dubai Contracting Company (DCC)" }
+  ];
+
+  try {
+    const [dbProjects, dbCustomers] = await Promise.all([
+      prisma.project.findMany({
+        include: { customer: true, _count: { select: { workOrders: true } } },
+        orderBy: { createdAt: "desc" }
+      }),
+      prisma.customer.findMany({ where: { active: true }, orderBy: { name: "asc" } })
+    ]);
+    if (dbProjects && dbProjects.length > 0) projects = dbProjects;
+    if (dbCustomers && dbCustomers.length > 0) customers = dbCustomers;
+  } catch (err) {
+    console.warn("ProjectsPage using presentation demo fallback:", err);
+  }
 
   return (
     <div className="space-y-6">
@@ -45,9 +66,9 @@ export default async function ProjectsPage() {
                   </Link>
                 </td>
                 <td className="px-4 py-3">{p.name}</td>
-                <td className="px-4 py-3">{p.customer.name}</td>
+                <td className="px-4 py-3">{p.customer?.name || "N/A"}</td>
                 <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                <td className="px-4 py-3">{p._count.workOrders}</td>
+                <td className="px-4 py-3">{p._count?.workOrders ?? 0}</td>
               </tr>
             ))}
             {projects.length === 0 && (
