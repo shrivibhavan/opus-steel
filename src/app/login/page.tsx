@@ -17,14 +17,21 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const res = await signIn("credentials", { email, password, redirect: false });
+      const targetUrl = email.toLowerCase().includes("plant") ? "/plant" : "/dashboard";
+      const res = await signIn("credentials", {
+        email,
+        password,
+        callbackUrl: targetUrl,
+        redirect: false
+      });
 
       if (!res || res.error) {
         setError("Incorrect email or password.");
         setLoading(false);
         return;
       }
-      window.location.href = email.toLowerCase().includes("plant") ? "/plant" : "/dashboard";
+
+      window.location.replace(res.url || targetUrl);
     } catch (err) {
       console.error("Login error:", err);
       setError("Sign in failed. Please check credentials and try again.");

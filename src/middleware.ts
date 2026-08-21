@@ -1,8 +1,10 @@
-export { default } from "next-auth/middleware";
+import { withAuth } from "next-auth/middleware";
 
-// Every route below requires a signed-in session. Fine-grained role checks
-// (e.g. "OFFICE can release a work order") happen inside each API route via
-// src/lib/permissions.ts — middleware only handles "logged in or not".
+export default withAuth({
+  secret: process.env.NEXTAUTH_SECRET || "opus-steel-production-secret-key-2026"
+});
+
+// Every route below requires a signed-in session.
 export const config = {
   matcher: [
     "/dashboard/:path*",
