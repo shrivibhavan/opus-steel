@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NewProjectForm } from "./NewProjectForm";
+import { SyncZohoButton } from "./SyncZohoButton";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,7 @@ export default async function ProjectsPage() {
           <h1 className="text-xl font-semibold text-steel-900">Projects</h1>
           <p className="text-sm text-steel-500">Every project, from planning through completion.</p>
         </div>
+        <SyncZohoButton />
       </div>
 
       <NewProjectForm customers={customers} />

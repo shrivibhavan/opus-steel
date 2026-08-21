@@ -9,14 +9,36 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
+    let payload: any = {};
+    const contentType = req.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      payload = await req.json();
+    } else {
+      const text = await req.text();
+      try {
+        payload = JSON.parse(text);
+      } catch (e) {
+        // Parse form-urlencoded (e.g. JSON_STRING=... or form parameters)
+        const params = new URLSearchParams(text);
+        if (params.has("JSON_STRING")) {
+          payload = JSON.parse(params.get("JSON_STRING")!);
+        } else if (params.has("JSON")) {
+          payload = JSON.parse(params.get("JSON")!);
+        } else {
+          payload = Object.fromEntries(params.entries());
+        }
+      }
+    }
+
+    console.log("[Zoho Webhook Received Payload]:", payload);
 
     // 1. Check for Zoho Direct Project Creation payload
     const project = payload.project || payload;
-    if (project && (project.project_name || project.project_id)) {
+    if (project && (project.project_name || project.project_id || project.name || project.project_number)) {
       const result = await processZohoDirectProject(
         {
-          project_id: project.project_id || project.id,
+          project_id: project.project_id || project.id || project.project_number,
           project_name: project.project_name || project.name || "Zoho Project",
           customer_name: project.customer_name || project.account_name || "Zoho Client"
         },
@@ -34,7 +56,7 @@ export async function POST(req: NextRequest) {
     // 2. Check for Zoho Sales Order event payload
     const salesOrder = payload.salesorder || payload;
 
-    if (salesOrder && (salesOrder.salesorder_id || salesOrder.salesorder_number)) {
+    if (salesOrder && (salesOrder.salesorder_id || salesOrder.salesorder_number || salesOrder.subject)) {
       const result = await processZohoSalesOrder(
         {
           salesorder_id: salesOrder.salesorder_id || `SO-${Date.now()}`,
@@ -64,7 +86,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Webhook received (No sales order or project payload detected)"
+      message: "Webhook received successfully",
+      receivedPayload: payload
     });
   } catch (err: any) {
     console.error("[Zoho Webhook Error]:", err);
