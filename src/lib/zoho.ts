@@ -50,6 +50,17 @@ export async function getZohoAccessToken(): Promise<string | null> {
 }
 
 /**
+ * Helper to make authenticated GET requests to Zoho Books API.
+ */
+async function zohoApiFetch(token: string, endpoint: string) {
+  const url = `https://www.zohoapis.${ZOHO_DOMAIN}/books/v3/${endpoint}${endpoint.includes("?") ? "&" : "?"}organization_id=${ZOHO_ORGANIZATION_ID}&per_page=200`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Zoho-oauthtoken ${token}` }
+  });
+  return res.json();
+}
+
+/**
  * Returns current Zoho connection status and settings metadata.
  */
 export async function getZohoIntegrationStatus() {
@@ -65,13 +76,326 @@ export async function getZohoIntegrationStatus() {
   }
 
   return {
-    connected: true, // Inbound webhook is ready out of the box!
+    connected: true,
     inboundActive: true,
     outboundActive: hasFullConfig,
     organizationId: ZOHO_ORGANIZATION_ID || "Optional (Needed for automatic invoice generation)",
     clientId: ZOHO_CLIENT_ID ? `${ZOHO_CLIENT_ID.substring(0, 10)}...` : "Not Set",
     statusText,
     webhookUrl: `${process.env.NEXTAUTH_URL || "https://app.opusengg.com"}/api/integrations/zoho/webhook`
+  };
+}
+
+// =========================================================
+// SYNC: Customers from Zoho Books → OPUS Steel
+// =========================================================
+
+/**
+ * Pulls all contacts (customers) from Zoho Books and upserts into OPUS Steel.
+ */
+export async function syncZohoCustomers(token: string) {
+  const data = await zohoApiFetch(token, "contacts");
+
+  if (!data.contacts || !Array.isArray(data.contacts)) {
+    console.log("[Zoho Sync] No contacts found or API error:", data.message);
+    return { synced: 0, customers: [] };
+  }
+
+  const synced: string[] = [];
+
+  for (const contact of data.contacts) {
+    if (contact.status !== "active") continue;
+
+    const zohoId = `zoho-cust-${contact.contact_id}`;
+    await prisma.customer.upsert({
+      where: { id: zohoId },
+      create: {
+        id: zohoId,
+        name: contact.contact_name || contact.company_name || "Zoho Contact",
+        contactPerson: [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null,
+        email: contact.email || null,
+        phone: contact.phone || contact.mobile || null,
+        notes: `Synced from Zoho Books (Contact ID: ${contact.contact_id})`
+      },
+      update: {
+        name: contact.contact_name || contact.company_name,
+        contactPerson: [contact.first_name, contact.last_name].filter(Boolean).join(" ") || undefined,
+        email: contact.email || undefined,
+        phone: contact.phone || contact.mobile || undefined
+      }
+    });
+    synced.push(contact.contact_name);
+  }
+
+  return { synced: synced.length, customers: synced };
+}
+
+// =========================================================
+// SYNC: Projects from Zoho Books → OPUS Steel
+// =========================================================
+
+/**
+ * Pulls all projects from Zoho Books and upserts into OPUS Steel.
+ */
+export async function syncZohoProjects(token: string, createdByUserId: string) {
+  const data = await zohoApiFetch(token, "projects");
+
+  if (!data.projects || !Array.isArray(data.projects)) {
+    console.log("[Zoho Sync] No projects found or API error:", data.message);
+    return { synced: 0, projects: [] };
+  }
+
+  const synced: string[] = [];
+
+  for (const proj of data.projects) {
+    // Upsert customer first
+    const customerId = `zoho-cust-${proj.customer_id}`;
+    await prisma.customer.upsert({
+      where: { id: customerId },
+      create: {
+        id: customerId,
+        name: proj.customer_name || "Zoho Client",
+        notes: `Synced from Zoho Books (Customer ID: ${proj.customer_id})`
+      },
+      update: {
+        name: proj.customer_name || undefined
+      }
+    });
+
+    // Use Zoho project code if available, otherwise use project_id
+    const projectCode = proj.project_code || proj.project_id;
+    const projectNumber = `PRJ-ZOHO-${projectCode}`;
+
+    await prisma.project.upsert({
+      where: { projectNumber },
+      create: {
+        projectNumber,
+        name: proj.project_name,
+        customerId,
+        status: proj.status === "active" ? "ACTIVE" : "COMPLETED",
+        createdById: createdByUserId,
+        description: proj.description || `Synced from Zoho Books (Project ID: ${proj.project_id})${proj.rate ? ` | Value: AED ${Number(proj.rate).toLocaleString()}` : ""}`
+      },
+      update: {
+        name: proj.project_name,
+        customerId,
+        status: proj.status === "active" ? "ACTIVE" : "COMPLETED",
+        description: proj.description || `Synced from Zoho Books (Project ID: ${proj.project_id})${proj.rate ? ` | Value: AED ${Number(proj.rate).toLocaleString()}` : ""}`
+      }
+    });
+    synced.push(proj.project_name);
+  }
+
+  return { synced: synced.length, projects: synced };
+}
+
+// =========================================================
+// SYNC: Invoices from Zoho Books → OPUS Steel
+// =========================================================
+
+/**
+ * Pulls invoices from Zoho Books and creates project records.
+ */
+export async function syncZohoInvoices(token: string, createdByUserId: string) {
+  const data = await zohoApiFetch(token, "invoices");
+
+  if (!data.invoices || !Array.isArray(data.invoices)) {
+    return { synced: 0, invoices: [] };
+  }
+
+  const synced: string[] = [];
+
+  for (const inv of data.invoices) {
+    const customerId = `zoho-cust-${inv.customer_id}`;
+    await prisma.customer.upsert({
+      where: { id: customerId },
+      create: {
+        id: customerId,
+        name: inv.customer_name || "Zoho Customer",
+        notes: `Synced from Zoho Books Invoice`
+      },
+      update: {
+        name: inv.customer_name || undefined
+      }
+    });
+
+    const projectNumber = `PRJ-ZOHO-INV-${inv.invoice_number}`;
+    const existingProject = await prisma.project.findUnique({ where: { projectNumber } });
+
+    if (!existingProject) {
+      await prisma.project.create({
+        data: {
+          projectNumber,
+          name: `Invoice ${inv.invoice_number} — ${inv.customer_name}`,
+          customerId,
+          status: inv.status === "paid" ? "COMPLETED" : "ACTIVE",
+          createdById: createdByUserId,
+          description: `Synced from Zoho Books Invoice #${inv.invoice_number} | Total: AED ${Number(inv.total || 0).toLocaleString()} | Status: ${inv.status}`
+        }
+      });
+    }
+
+    synced.push(inv.invoice_number);
+  }
+
+  return { synced: synced.length, invoices: synced };
+}
+
+// =========================================================
+// SYNC: Estimates (Quotations) from Zoho Books → OPUS Steel
+// =========================================================
+
+/**
+ * Pulls estimates/quotations from Zoho Books and creates project records.
+ */
+export async function syncZohoEstimates(token: string, createdByUserId: string) {
+  const data = await zohoApiFetch(token, "estimates");
+
+  if (!data.estimates || !Array.isArray(data.estimates)) {
+    return { synced: 0, estimates: [] };
+  }
+
+  const synced: string[] = [];
+
+  for (const est of data.estimates) {
+    const customerId = `zoho-cust-${est.customer_id}`;
+    await prisma.customer.upsert({
+      where: { id: customerId },
+      create: {
+        id: customerId,
+        name: est.customer_name || "Zoho Customer",
+        notes: `Synced from Zoho Books Estimate`
+      },
+      update: {
+        name: est.customer_name || undefined
+      }
+    });
+
+    const projectNumber = `PRJ-ZOHO-QT-${est.estimate_number}`;
+    const existingProject = await prisma.project.findUnique({ where: { projectNumber } });
+
+    if (!existingProject) {
+      const status = est.status === "accepted" ? "ACTIVE" : "PLANNING";
+      await prisma.project.create({
+        data: {
+          projectNumber,
+          name: `Quote ${est.estimate_number} — ${est.customer_name}`,
+          customerId,
+          status,
+          createdById: createdByUserId,
+          description: `Synced from Zoho Books Quotation #${est.estimate_number} | Total: AED ${Number(est.total || 0).toLocaleString()} | Status: ${est.status}`
+        }
+      });
+    }
+
+    synced.push(est.estimate_number);
+  }
+
+  return { synced: synced.length, estimates: synced };
+}
+
+// =========================================================
+// SYNC: Sales Orders from Zoho Books → OPUS Steel
+// =========================================================
+
+/**
+ * Pulls sales orders from Zoho Books and creates Work Orders.
+ */
+export async function syncZohoSalesOrders(token: string, createdByUserId: string) {
+  const data = await zohoApiFetch(token, "salesorders");
+
+  if (!data.salesorders || !Array.isArray(data.salesorders)) {
+    return { synced: 0, salesOrders: [] };
+  }
+
+  const synced: string[] = [];
+
+  for (const so of data.salesorders) {
+    let lineItems = so.line_items || [];
+    if (!lineItems.length) {
+      try {
+        const detail = await zohoApiFetch(token, `salesorders/${so.salesorder_id}`);
+        lineItems = detail.salesorder?.line_items || [];
+      } catch (e) {
+        console.warn("[Zoho Sync] Could not fetch SO details:", so.salesorder_id);
+      }
+    }
+
+    await processZohoSalesOrder(
+      {
+        salesorder_id: so.salesorder_id,
+        salesorder_number: so.salesorder_number,
+        customer_id: so.customer_id,
+        customer_name: so.customer_name,
+        date: so.date,
+        total: Number(so.total || 0),
+        line_items: lineItems.map((item: any) => ({
+          item_id: item.item_id || "ITEM",
+          name: item.name || "Steel Fabrication Item",
+          description: item.description || "",
+          quantity: Number(item.quantity || 1),
+          rate: Number(item.rate || 0),
+          unit: item.unit || "Nos"
+        }))
+      },
+      createdByUserId
+    );
+    synced.push(so.salesorder_number);
+  }
+
+  return { synced: synced.length, salesOrders: synced };
+}
+
+// =========================================================
+// MASTER SYNC: Pull everything from Zoho Books
+// =========================================================
+
+/**
+ * Runs a full sync of all entities from Zoho Books into OPUS Steel.
+ * Customers → Projects → Sales Orders → Invoices → Estimates
+ */
+export async function syncAllFromZoho(createdByUserId: string = "seed-office") {
+  const token = await getZohoAccessToken();
+  if (!token) {
+    return { success: false, error: "Could not get Zoho access token. Check credentials." };
+  }
+
+  console.log("[Zoho Full Sync] Starting...");
+
+  const customers = await syncZohoCustomers(token);
+  console.log(`[Zoho Full Sync] Customers: ${customers.synced}`);
+
+  const projects = await syncZohoProjects(token, createdByUserId);
+  console.log(`[Zoho Full Sync] Projects: ${projects.synced}`);
+
+  const salesOrders = await syncZohoSalesOrders(token, createdByUserId);
+  console.log(`[Zoho Full Sync] Sales Orders: ${salesOrders.synced}`);
+
+  const invoices = await syncZohoInvoices(token, createdByUserId);
+  console.log(`[Zoho Full Sync] Invoices: ${invoices.synced}`);
+
+  const estimates = await syncZohoEstimates(token, createdByUserId);
+  console.log(`[Zoho Full Sync] Estimates: ${estimates.synced}`);
+
+  console.log("[Zoho Full Sync] Complete!");
+
+  return {
+    success: true,
+    summary: {
+      customers: customers.synced,
+      projects: projects.synced,
+      salesOrders: salesOrders.synced,
+      invoices: invoices.synced,
+      estimates: estimates.synced,
+      total: customers.synced + projects.synced + salesOrders.synced + invoices.synced + estimates.synced
+    },
+    details: {
+      customers: customers.customers,
+      projects: projects.projects,
+      salesOrders: salesOrders.salesOrders,
+      invoices: invoices.invoices,
+      estimates: estimates.estimates
+    }
   };
 }
 
@@ -216,7 +540,7 @@ export async function createZohoInvoiceFromDispatch(dispatchId: string) {
       line_items: dispatch.items.map((item) => ({
         name: item.description,
         quantity: Number(item.quantityDispatched),
-        rate: 0 // Commercial rate set in Zoho
+        rate: 0
       }))
     };
 

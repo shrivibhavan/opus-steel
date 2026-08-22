@@ -36,7 +36,7 @@ export function SyncZohoButton() {
         disabled={loading}
         className="inline-flex items-center gap-1.5 rounded bg-steel-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-steel-700 disabled:opacity-50"
       >
-        {loading ? "Syncing..." : "⚡ Sync Zoho Projects"}
+        {loading ? "Syncing..." : "⚡ Sync Zoho Books"}
       </button>
       {message && <span className="text-xs text-signal-blue">{message}</span>}
     </div>
