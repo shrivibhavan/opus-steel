@@ -4,11 +4,9 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import type { Role } from "@/types/enums";
 
-// Ensure process.env.NEXTAUTH_URL is populated for serverless & static prerendering
+// Ensure process.env.NEXTAUTH_URL defaults to the primary domain
 if (!process.env.NEXTAUTH_URL) {
-  process.env.NEXTAUTH_URL = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "https://app.opusengg.com";
+  process.env.NEXTAUTH_URL = "https://app.opusengg.com";
 }
 
 const DEMO_USERS: Record<string, { id: string; name: string; email: string; role: Role }> = {
@@ -60,6 +58,14 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      try {
+        const parsed = new URL(url);
+        if (parsed.hostname === "app.opusengg.com") return url;
+      } catch {}
+      return baseUrl;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = (user as any).id;
