@@ -1,11 +1,11 @@
 import { prisma } from "./prisma";
 
 // Zoho API Credentials from Environment Variables
-const ZOHO_CLIENT_ID = process.env.ZOHO_CLIENT_ID || "1000.2HVC6CRCDAUYU003S16AIA83J4MTET";
-const ZOHO_CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET || "f75bb1f009bb925aae5e2393b5f9b1ed8b27345144";
+const ZOHO_CLIENT_ID = process.env.ZOHO_CLIENT_ID || "";
+const ZOHO_CLIENT_SECRET = process.env.ZOHO_CLIENT_SECRET || "";
 const ZOHO_REFRESH_TOKEN = process.env.ZOHO_REFRESH_TOKEN || "";
 const ZOHO_ORGANIZATION_ID = process.env.ZOHO_ORGANIZATION_ID || "";
-const ZOHO_DOMAIN = process.env.ZOHO_DOMAIN || "com"; // "com", "eu", "in", etc.
+const ZOHO_DOMAIN = process.env.ZOHO_DOMAIN || "com";
 
 export interface ZohoSalesOrderPayload {
   salesorder_id: string;
