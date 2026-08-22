@@ -6,42 +6,9 @@ import { SyncZohoButton } from "./SyncZohoButton";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_PROJECTS = [
-  {
-    id: "demo-prj-1",
-    projectNumber: "PRJ-2026-00001",
-    name: "Warehouse Structural Steel Frame - Phase 1",
-    customer: { id: "cust-1", name: "Al Habtoor Engineering LLC" },
-    status: "ACTIVE",
-    _count: { workOrders: 2 }
-  },
-  {
-    id: "demo-prj-2",
-    projectNumber: "PRJ-2026-00002",
-    name: "Commercial Tower Canopy & Facade Support",
-    customer: { id: "cust-2", name: "Dubai Contracting Company (DCC)" },
-    status: "ACTIVE",
-    _count: { workOrders: 1 }
-  },
-  {
-    id: "demo-prj-3",
-    projectNumber: "PRJ-ZOHO-001",
-    name: "Structural Mezzanine Decking & Steel Stairs",
-    customer: { id: "cust-3", name: "Emaar Properties (Zoho Sync)" },
-    status: "ACTIVE",
-    _count: { workOrders: 1 }
-  }
-];
-
-const DEFAULT_CUSTOMERS = [
-  { id: "cust-1", name: "Al Habtoor Engineering LLC" },
-  { id: "cust-2", name: "Dubai Contracting Company (DCC)" },
-  { id: "cust-3", name: "Emaar Properties" }
-];
-
 export default async function ProjectsPage() {
-  let projects: any[] = DEFAULT_PROJECTS;
-  let customers: any[] = DEFAULT_CUSTOMERS;
+  let projects: any[] = [];
+  let customers: any[] = [];
 
   try {
     const [dbProjects, dbCustomers] = await Promise.all([
@@ -52,16 +19,10 @@ export default async function ProjectsPage() {
       prisma.customer.findMany({ where: { active: true }, orderBy: { name: "asc" } })
     ]);
 
-    if (dbProjects && dbProjects.length > 0) {
-      const dbProjectNumbers = new Set(dbProjects.map((p) => p.projectNumber));
-      const missingDefaults = DEFAULT_PROJECTS.filter((p) => !dbProjectNumbers.has(p.projectNumber));
-      projects = [...dbProjects, ...missingDefaults];
-    }
-    if (dbCustomers && dbCustomers.length > 0) {
-      customers = dbCustomers;
-    }
+    projects = dbProjects || [];
+    customers = dbCustomers || [];
   } catch (err) {
-    console.warn("ProjectsPage using presentation demo fallback:", err);
+    console.error("ProjectsPage query error:", err);
   }
 
   return (
@@ -71,7 +32,7 @@ export default async function ProjectsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-steel-900">Projects Directory</h1>
           <p className="text-sm font-medium text-steel-500">
-            Manage contract portfolios, customer links, and active fabrication work orders.
+            Live projects synced from Zoho Books &amp; created in OPUS Steel.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -117,7 +78,7 @@ export default async function ProjectsPage() {
             {projects.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-12 text-center text-steel-400">
-                  No projects yet — create one above or click Sync Zoho Books.
+                  No projects found in database. Click <strong>⚡ Sync Zoho Books</strong> to pull your real Zoho Books projects.
                 </td>
               </tr>
             )}

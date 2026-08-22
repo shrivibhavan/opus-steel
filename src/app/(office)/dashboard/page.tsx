@@ -42,16 +42,16 @@ function MetricCard({ label, value, sub, accentColor = "slate", icon }: MetricCa
 }
 
 export default async function DashboardPage() {
-  let activeProjects = 1;
-  let awaitingProduction = 1;
-  let inProduction = 1;
+  let activeProjects = 0;
+  let awaitingProduction = 0;
+  let inProduction = 0;
   let completed = 0;
   let delayed = 0;
-  let pendingQc = 1;
-  let pendingDispatch = 1;
-  let steelUsedMonth = 4700;
-  let scrapMonth = 180;
-  let productionQtyMonth = 50;
+  let pendingQc = 0;
+  let pendingDispatch = 0;
+  let steelUsedMonth = 0;
+  let scrapMonth = 0;
+  let productionQtyMonth = 0;
 
   try {
     const [

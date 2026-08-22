@@ -3,35 +3,16 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export default async function MaterialsPage() {
-  let materials: any[] = [
-    {
-      id: "mat-1",
-      materialCode: "BEAM-UB457",
-      materialName: "Universal Beam 457x191x89",
-      materialType: "STRUCTURAL_BEAM",
-      grade: "S355JR",
-      size: "457x191x89",
-      transactions: [{ txType: "RECEIPT", weightKg: 15000 }, { txType: "ISSUE", weightKg: 4700 }]
-    },
-    {
-      id: "mat-2",
-      materialCode: "PLT-20MM",
-      materialName: "Hot Rolled Steel Plate 20mm",
-      materialType: "STEEL_PLATE",
-      grade: "S275JR",
-      size: "20mm x 2500mm x 6000mm",
-      transactions: [{ txType: "RECEIPT", weightKg: 10000 }]
-    }
-  ];
+  let materials: any[] = [];
 
   try {
     const dbMaterials = await prisma.material.findMany({
       include: { transactions: true, supplier: true },
       orderBy: { materialName: "asc" }
     });
-    if (dbMaterials && dbMaterials.length > 0) materials = dbMaterials;
+    materials = dbMaterials || [];
   } catch (err) {
-    console.warn("MaterialsPage using presentation demo fallback:", err);
+    console.error("MaterialsPage query error:", err);
   }
 
   const rows = materials.map((m) => {
@@ -47,39 +28,45 @@ export default async function MaterialsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold text-steel-900">Materials</h1>
-        <p className="text-sm text-steel-500">
-          Stock is calculated from the transaction ledger — every receipt, issue and return.
+        <h1 className="text-2xl font-bold tracking-tight text-steel-900">Materials Inventory Ledger</h1>
+        <p className="text-sm font-medium text-steel-500">
+          Stock levels derived in real-time from transaction ledger (receipts, issues, returns).
         </p>
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-steel-200 bg-steel-50 text-xs uppercase text-steel-500">
+      <div className="table-container">
+        <table className="table-enterprise">
+          <thead>
             <tr>
-              <th className="px-4 py-3">Code</th>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3">Grade</th>
-              <th className="px-4 py-3">Size</th>
-              <th className="px-4 py-3">Stock (KG)</th>
+              <th>Material Code</th>
+              <th>Material Name</th>
+              <th>Type</th>
+              <th>Grade</th>
+              <th>Size</th>
+              <th className="text-right">Stock Level</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((m) => (
-              <tr key={m.id} className="border-b border-steel-100 last:border-0 hover:bg-steel-50">
-                <td className="px-4 py-3 font-medium">{m.materialCode}</td>
-                <td className="px-4 py-3">{m.materialName}</td>
-                <td className="px-4 py-3">{(m.materialType || "").replaceAll("_", " ")}</td>
-                <td className="px-4 py-3">{m.grade ?? "—"}</td>
-                <td className="px-4 py-3">{m.size ?? "—"}</td>
-                <td className="px-4 py-3">{m.stockKg.toFixed(1)}</td>
+              <tr key={m.id}>
+                <td className="font-mono text-xs font-bold text-slate-900">{m.materialCode}</td>
+                <td className="font-semibold text-slate-800">{m.materialName}</td>
+                <td>
+                  <span className="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {(m.materialType || "").replaceAll("_", " ")}
+                  </span>
+                </td>
+                <td className="font-mono text-xs text-slate-600">{m.grade ?? "—"}</td>
+                <td className="text-xs text-slate-600">{m.size ?? "—"}</td>
+                <td className="text-right font-mono text-xs font-bold text-slate-900 tabular-nums">
+                  {m.stockKg.toLocaleString()} {m.unit || "KG"}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-steel-400">
-                  No materials yet.
+                <td colSpan={6} className="px-4 py-12 text-center text-steel-400">
+                  No materials recorded in database inventory.
                 </td>
               </tr>
             )}

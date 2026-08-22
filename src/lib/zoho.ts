@@ -131,6 +131,94 @@ export async function syncZohoCustomers(token: string) {
 }
 
 // =========================================================
+// SYNC: Documents & Drawings from Zoho Books → OPUS Steel
+// =========================================================
+
+/**
+ * Pulls attached documents (drawings, PDFs, specs) for a Zoho Books record
+ * and registers them as Drawings and Attachments in OPUS Steel.
+ */
+export async function syncZohoEntityDocuments(
+  token: string,
+  entity: string,
+  entityId: string,
+  projectId?: string,
+  workOrderId?: string,
+  createdByUserId?: string
+) {
+  try {
+    const data = await zohoApiFetch(token, `${entity}/${entityId}/documents`);
+    const docs = data.documents || data.document_files || [];
+    if (!Array.isArray(docs) || docs.length === 0) return 0;
+
+    let count = 0;
+    for (const doc of docs) {
+      const docId = doc.document_id || doc.id;
+      const fileName = doc.file_name || doc.name || "Zoho_Attachment.pdf";
+      const drawingNumber = `DWG-ZOHO-${docId}`;
+      const fileKey = `/api/integrations/zoho/document?entity=${entity}&entityId=${entityId}&docId=${docId}`;
+
+      const drawing = await prisma.drawing.upsert({
+        where: { id: `zoho-doc-${docId}` },
+        create: {
+          id: `zoho-doc-${docId}`,
+          drawingNumber,
+          drawingTitle: fileName,
+          projectId,
+          workOrderId,
+          documentType: "SHOP_DRAWING",
+          remarks: `Synced from Zoho Books (${entity})`
+        },
+        update: {
+          drawingTitle: fileName,
+          projectId,
+          workOrderId
+        }
+      });
+
+      await prisma.drawingRevision.upsert({
+        where: { drawingId_revision: { drawingId: drawing.id, revision: "00" } },
+        create: {
+          drawingId: drawing.id,
+          revision: "00",
+          status: "ISSUED",
+          fileKey,
+          fileName,
+          uploadedById: createdByUserId || "seed-admin",
+          remarks: "Synced from Zoho Books attachment"
+        },
+        update: {
+          fileKey,
+          fileName
+        }
+      });
+
+      await prisma.attachment.upsert({
+        where: { id: `zoho-att-${docId}` },
+        create: {
+          id: `zoho-att-${docId}`,
+          fileKey,
+          fileName,
+          mimeType: doc.file_type || "application/pdf",
+          sizeBytes: doc.file_size ? Number(doc.file_size) : null,
+          projectId,
+          workOrderId
+        },
+        update: {
+          fileKey,
+          fileName
+        }
+      });
+
+      count++;
+    }
+    return count;
+  } catch (err) {
+    return 0;
+  }
+}
+
+// =========================================================
 // SYNC: Projects from Zoho Books → OPUS Steel
 // =========================================================
 
@@ -166,7 +254,7 @@ export async function syncZohoProjects(token: string, createdByUserId: string) {
     const projectCode = proj.project_code || proj.project_id;
     const projectNumber = `PRJ-ZOHO-${projectCode}`;
 
-    await prisma.project.upsert({
+    const project = await prisma.project.upsert({
       where: { projectNumber },
       create: {
         projectNumber,
@@ -183,6 +271,10 @@ export async function syncZohoProjects(token: string, createdByUserId: string) {
         description: proj.description || `Synced from Zoho Books (Project ID: ${proj.project_id})${proj.rate ? ` | Value: AED ${Number(proj.rate).toLocaleString()}` : ""}`
       }
     });
+
+    // Sync attached drawings & documents for this project
+    await syncZohoEntityDocuments(token, "projects", proj.project_id, project.id, undefined, createdByUserId);
+
     synced.push(proj.project_name);
   }
 
@@ -321,7 +413,7 @@ export async function syncZohoSalesOrders(token: string, createdByUserId: string
       }
     }
 
-    await processZohoSalesOrder(
+    const wo = await processZohoSalesOrder(
       {
         salesorder_id: so.salesorder_id,
         salesorder_number: so.salesorder_number,
@@ -340,6 +432,11 @@ export async function syncZohoSalesOrders(token: string, createdByUserId: string
       },
       createdByUserId
     );
+
+    if (wo && wo.id) {
+      await syncZohoEntityDocuments(token, "salesorders", so.salesorder_id, wo.projectId, wo.id, createdByUserId);
+    }
+
     synced.push(so.salesorder_number);
   }
 

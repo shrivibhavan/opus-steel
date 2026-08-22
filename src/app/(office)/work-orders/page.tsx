@@ -2,42 +2,13 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NewWorkOrderForm } from "./NewWorkOrderForm";
+import { SyncZohoButton } from "../projects/SyncZohoButton";
 
 export const dynamic = "force-dynamic";
 
-const DEFAULT_WORK_ORDERS = [
-  {
-    id: "demo-wo-1",
-    workOrderNumber: "WO-2026-00001",
-    project: { name: "Warehouse Structural Steel Frame - Phase 1" },
-    status: "IN_PRODUCTION",
-    priority: "HIGH",
-    items: [{ id: "item-1" }, { id: "item-2" }]
-  },
-  {
-    id: "demo-wo-2",
-    workOrderNumber: "WO-2026-00002",
-    project: { name: "Commercial Tower Canopy & Facade Support" },
-    status: "RELEASED",
-    priority: "NORMAL",
-    items: [{ id: "item-3" }]
-  },
-  {
-    id: "demo-wo-3",
-    workOrderNumber: "WO-ZOHO-001",
-    project: { name: "Structural Mezzanine Decking & Steel Stairs" },
-    status: "DRAFT",
-    priority: "NORMAL",
-    items: [{ id: "item-4" }, { id: "item-5" }]
-  }
-];
-
 export default async function WorkOrdersPage() {
-  let workOrders: any[] = DEFAULT_WORK_ORDERS;
-  let projects: any[] = [
-    { id: "demo-prj-1", name: "Warehouse Structural Steel Frame - Phase 1", customer: { name: "Al Habtoor Engineering LLC" } },
-    { id: "demo-prj-2", name: "Commercial Tower Canopy & Facade Support", customer: { name: "Dubai Contracting Company (DCC)" } }
-  ];
+  let workOrders: any[] = [];
+  let projects: any[] = [];
 
   try {
     const [dbWorkOrders, dbProjects] = await Promise.all([
@@ -48,58 +19,64 @@ export default async function WorkOrdersPage() {
       prisma.project.findMany({ include: { customer: true }, orderBy: { name: "asc" } })
     ]);
 
-    if (dbWorkOrders && dbWorkOrders.length > 0) {
-      const dbWONumbers = new Set(dbWorkOrders.map((w) => w.workOrderNumber));
-      const missingDefaults = DEFAULT_WORK_ORDERS.filter((w) => !dbWONumbers.has(w.workOrderNumber));
-      workOrders = [...dbWorkOrders, ...missingDefaults];
-    }
-    if (dbProjects && dbProjects.length > 0) {
-      projects = dbProjects;
-    }
+    workOrders = dbWorkOrders || [];
+    projects = dbProjects || [];
   } catch (err) {
-    console.warn("WorkOrdersPage using presentation demo fallback:", err);
+    console.error("WorkOrdersPage query error:", err);
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-steel-900">Work Orders</h1>
-        <p className="text-sm text-steel-500">
-          Draft here, then release — released orders appear immediately in the plant queue.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-steel-900">Work Orders &amp; Job Sheets</h1>
+          <p className="text-sm font-medium text-steel-500">
+            Work orders synced from Zoho Books Sales Orders or created in office.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <SyncZohoButton />
+          <NewWorkOrderForm projects={projects} />
+        </div>
       </div>
 
-      <NewWorkOrderForm projects={projects} />
-
-      <div className="card overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-steel-200 bg-steel-50 text-xs uppercase text-steel-500">
+      <div className="table-container">
+        <table className="table-enterprise">
+          <thead>
             <tr>
-              <th className="px-4 py-3">WO #</th>
-              <th className="px-4 py-3">Project</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Priority</th>
-              <th className="px-4 py-3">Items</th>
+              <th>WO Number</th>
+              <th>Project</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th className="text-right">Line Items</th>
             </tr>
           </thead>
           <tbody>
             {workOrders.map((w) => (
-              <tr key={w.id} className="border-b border-steel-100 last:border-0 hover:bg-steel-50">
-                <td className="px-4 py-3 font-medium">
-                  <Link href={`/work-orders/${w.id}`} className="text-signal-blue hover:underline">
+              <tr key={w.id}>
+                <td className="font-mono text-xs font-bold">
+                  <Link href={`/work-orders/${w.id}`} className="text-blue-600 hover:text-blue-800 hover:underline">
                     {w.workOrderNumber}
                   </Link>
                 </td>
-                <td className="px-4 py-3">{w.project?.name || "N/A"}</td>
-                <td className="px-4 py-3"><StatusBadge status={w.status} /></td>
-                <td className="px-4 py-3">{w.priority}</td>
-                <td className="px-4 py-3">{w.items?.length || 0}</td>
+                <td className="font-semibold text-slate-800">{w.project?.name || "N/A"}</td>
+                <td>
+                  <StatusBadge status={w.status} />
+                </td>
+                <td>
+                  <span className="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {w.priority}
+                  </span>
+                </td>
+                <td className="text-right font-mono text-xs font-bold text-slate-700 tabular-nums">
+                  {w.items?.length || 0}
+                </td>
               </tr>
             ))}
             {workOrders.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-steel-400">
-                  No work orders yet — create the first one above.
+                <td colSpan={5} className="px-4 py-12 text-center text-steel-400">
+                  No work orders found. Work orders are automatically created when a Sales Order is synced from Zoho Books.
                 </td>
               </tr>
             )}
