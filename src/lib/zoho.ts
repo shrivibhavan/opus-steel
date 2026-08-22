@@ -354,10 +354,20 @@ export async function syncZohoSalesOrders(token: string, createdByUserId: string
  * Runs a full sync of all entities from Zoho Books into OPUS Steel.
  * Customers → Projects → Sales Orders → Invoices → Estimates
  */
-export async function syncAllFromZoho(createdByUserId: string = "seed-office") {
+export async function syncAllFromZoho(createdByUserId?: string) {
   const token = await getZohoAccessToken();
   if (!token) {
     return { success: false, error: "Could not get Zoho access token. Check credentials." };
+  }
+
+  // Resolve a valid user ID for foreign key references
+  if (!createdByUserId) {
+    const adminUser = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+    const anyUser = adminUser || await prisma.user.findFirst();
+    if (!anyUser) {
+      return { success: false, error: "No users found in database. Run prisma db seed first." };
+    }
+    createdByUserId = anyUser.id;
   }
 
   console.log("[Zoho Full Sync] Starting...");

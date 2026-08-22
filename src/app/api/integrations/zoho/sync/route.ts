@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST() {
   try {
-    const result = await syncAllFromZoho("seed-office");
+    const result = await syncAllFromZoho();
 
     if (!result.success) {
       return NextResponse.json(
