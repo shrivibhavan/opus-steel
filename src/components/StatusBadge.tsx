@@ -1,36 +1,62 @@
-const STATUS_COLOR: Record<string, string> = {
-  DRAFT: "bg-steel-100 text-steel-600",
-  ON_HOLD: "bg-steel-100 text-steel-600",
-  CANCELLED: "bg-steel-200 text-steel-500 line-through",
+import React from "react";
 
-  RELEASED: "bg-blue-50 text-signal-blue",
-  MATERIAL_PENDING: "bg-orange-50 text-signal-orange",
-  READY_FOR_PRODUCTION: "bg-blue-50 text-signal-blue",
-  IN_PRODUCTION: "bg-blue-50 text-signal-blue",
-  PARTIALLY_COMPLETED: "bg-blue-50 text-signal-blue",
-  PRODUCTION_COMPLETED: "bg-green-50 text-signal-green",
+interface StatusConfig {
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+}
 
-  QC_PENDING: "bg-orange-50 text-signal-orange",
-  REWORK: "bg-red-50 text-signal-red",
-  QC_PASSED: "bg-green-50 text-signal-green",
-  FAILED: "bg-red-50 text-signal-red",
-  PASSED: "bg-green-50 text-signal-green",
-  PENDING: "bg-orange-50 text-signal-orange",
-  CONDITIONAL: "bg-orange-50 text-signal-orange",
+const STATUS_MAP: Record<string, StatusConfig> = {
+  // Positive / Completed states
+  ACTIVE: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/80", dot: "bg-emerald-500" },
+  COMPLETED: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/80", dot: "bg-emerald-500" },
+  DISPATCHED: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/80", dot: "bg-emerald-500" },
+  QC_PASSED: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/80", dot: "bg-emerald-500" },
+  PASSED: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/80", dot: "bg-emerald-500" },
+  PRODUCTION_COMPLETED: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200/80", dot: "bg-emerald-500" },
 
-  READY_FOR_DISPATCH: "bg-blue-50 text-signal-blue",
-  DISPATCHED: "bg-green-50 text-signal-green",
-  COMPLETED: "bg-green-50 text-signal-green",
+  // Active / In Progress states
+  IN_PRODUCTION: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200/80", dot: "bg-blue-500" },
+  PARTIALLY_COMPLETED: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200/80", dot: "bg-blue-500" },
+  READY_FOR_PRODUCTION: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200/80", dot: "bg-blue-500" },
+  READY_FOR_DISPATCH: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200/80", dot: "bg-indigo-500" },
+  RELEASED: { bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200/80", dot: "bg-sky-500" },
 
-  PLANNING: "bg-steel-100 text-steel-600",
-  ACTIVE: "bg-blue-50 text-signal-blue"
+  // Pending / Warning states
+  PLANNING: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200/80", dot: "bg-amber-500" },
+  MATERIAL_PENDING: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200/80", dot: "bg-amber-500" },
+  QC_PENDING: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200/80", dot: "bg-amber-500" },
+  PENDING: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200/80", dot: "bg-amber-500" },
+  CONDITIONAL: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200/80", dot: "bg-amber-500" },
+
+  // Critical / Negative states
+  REWORK: { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200/80", dot: "bg-rose-500" },
+  FAILED: { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200/80", dot: "bg-rose-500" },
+  CANCELLED: { bg: "bg-slate-100", text: "text-slate-500 line-through", border: "border-slate-200", dot: "bg-slate-400" },
+
+  // Neutral states
+  DRAFT: { bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200", dot: "bg-slate-400" },
+  ON_HOLD: { bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200", dot: "bg-slate-400" }
+};
+
+const DEFAULT_CONFIG: StatusConfig = {
+  bg: "bg-slate-100",
+  text: "text-slate-700",
+  border: "border-slate-200",
+  dot: "bg-slate-400"
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const cls = STATUS_COLOR[status] ?? "bg-steel-100 text-steel-600";
+  const config = STATUS_MAP[status] || DEFAULT_CONFIG;
+  const label = status.replaceAll("_", " ");
+
   return (
-    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${cls}`}>
-      {status.replaceAll("_", " ")}
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold tracking-wide border ${config.bg} ${config.text} ${config.border}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
+      {label}
     </span>
   );
 }

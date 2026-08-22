@@ -2,33 +2,84 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-steel-50 text-steel-900 antialiased font-sans selection:bg-steel-800 selection:text-white;
+  }
+
+  /* Crisp tabular digits for financial/quantities */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-body {
-  @apply bg-steel-50 text-steel-900 antialiased;
-}
+@layer components {
+  /* High-end enterprise cards */
+  .card {
+    @apply rounded-lg border border-steel-200/80 bg-white shadow-card transition-all duration-150;
+  }
 
-.card {
-  @apply rounded-lg border border-steel-200 bg-white shadow-sm;
-}
+  .card-hover {
+    @apply card hover:border-steel-300 hover:shadow-elevated;
+  }
 
-.label-eyebrow {
-  @apply text-xs font-semibold uppercase tracking-wide text-steel-500;
-}
+  /* Micro eyebrow labels */
+  .label-eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-wider text-steel-400;
+  }
 
-.input {
-  @apply w-full rounded-md border border-steel-300 bg-white px-3 py-2 text-sm
-    focus:border-steel-500 focus:outline-none focus:ring-2 focus:ring-steel-200;
-}
+  /* Form inputs */
+  .input {
+    @apply w-full rounded-md border border-steel-200 bg-white px-3 py-2 text-sm text-steel-900 placeholder-steel-400 shadow-subtle transition
+      focus:border-steel-700 focus:outline-none focus:ring-1 focus:ring-steel-700 disabled:bg-steel-50 disabled:text-steel-500;
+  }
 
-.btn-primary {
-  @apply inline-flex items-center justify-center rounded-md bg-steel-800 px-4 py-2
-    text-sm font-medium text-white transition hover:bg-steel-900 disabled:opacity-50;
-}
+  .select {
+    @apply input bg-no-repeat pr-8;
+  }
 
-.btn-secondary {
-  @apply inline-flex items-center justify-center rounded-md border border-steel-300 bg-white
-    px-4 py-2 text-sm font-medium text-steel-800 transition hover:bg-steel-50;
+  /* Enterprise Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-steel-900 px-4 py-2 text-sm font-medium text-white shadow-subtle transition-all
+      hover:bg-steel-800 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-steel-200 bg-white px-4 py-2 text-sm font-medium text-steel-700 shadow-subtle transition-all
+      hover:border-steel-300 hover:bg-steel-50 hover:text-steel-900 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-steel-600 transition
+      hover:bg-steel-100 hover:text-steel-900;
+  }
+
+  /* Data Table styling */
+  .table-container {
+    @apply card overflow-hidden;
+  }
+
+  .table-enterprise {
+    @apply w-full text-left text-sm text-steel-800;
+  }
+
+  .table-enterprise th {
+    @apply border-b border-steel-200 bg-steel-50/80 px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-steel-500;
+  }
+
+  .table-enterprise td {
+    @apply border-b border-steel-100 px-4 py-3 transition-colors;
+  }
+
+  .table-enterprise tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .table-enterprise tr:hover td {
+    @apply bg-steel-50/60;
+  }
 }

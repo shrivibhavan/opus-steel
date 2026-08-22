@@ -53,7 +53,6 @@ export default async function ProjectsPage() {
     ]);
 
     if (dbProjects && dbProjects.length > 0) {
-      // Merge DB projects with default projects so no previous project is ever missing
       const dbProjectNumbers = new Set(dbProjects.map((p) => p.projectNumber));
       const missingDefaults = DEFAULT_PROJECTS.filter((p) => !dbProjectNumbers.has(p.projectNumber));
       projects = [...dbProjects, ...missingDefaults];
@@ -67,45 +66,58 @@ export default async function ProjectsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Top Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-steel-900">Projects</h1>
-          <p className="text-sm text-steel-500">Every project, from planning through completion.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-steel-900">Projects Directory</h1>
+          <p className="text-sm font-medium text-steel-500">
+            Manage contract portfolios, customer links, and active fabrication work orders.
+          </p>
         </div>
-        <SyncZohoButton />
+        <div className="flex items-center gap-3">
+          <SyncZohoButton />
+          <NewProjectForm customers={customers} />
+        </div>
       </div>
 
-      <NewProjectForm customers={customers} />
-
-      <div className="card overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-steel-200 bg-steel-50 text-xs uppercase text-steel-500">
+      {/* Enterprise Data Table */}
+      <div className="table-container">
+        <table className="table-enterprise">
+          <thead>
             <tr>
-              <th className="px-4 py-3">Project #</th>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Work Orders</th>
+              <th>Project Number</th>
+              <th>Project Name</th>
+              <th>Customer</th>
+              <th>Status</th>
+              <th className="text-right">Work Orders</th>
             </tr>
           </thead>
           <tbody>
             {projects.map((p) => (
-              <tr key={p.id} className="border-b border-steel-100 last:border-0 hover:bg-steel-50">
-                <td className="px-4 py-3 font-medium">
-                  <Link href={`/projects/${p.id}`} className="text-signal-blue hover:underline">
+              <tr key={p.id}>
+                <td className="font-mono text-xs font-bold">
+                  <Link href={`/projects/${p.id}`} className="text-blue-600 hover:text-blue-800 hover:underline">
                     {p.projectNumber}
                   </Link>
                 </td>
-                <td className="px-4 py-3">{p.name}</td>
-                <td className="px-4 py-3">{p.customer?.name || "N/A"}</td>
-                <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                <td className="px-4 py-3">{p._count?.workOrders ?? 0}</td>
+                <td className="font-semibold text-slate-800">{p.name}</td>
+                <td>
+                  <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {p.customer?.name || "N/A"}
+                  </span>
+                </td>
+                <td>
+                  <StatusBadge status={p.status} />
+                </td>
+                <td className="text-right font-mono text-xs font-bold text-slate-700 tabular-nums">
+                  {p._count?.workOrders ?? 0}
+                </td>
               </tr>
             ))}
             {projects.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-steel-400">
-                  No projects yet — create the first one above.
+                <td colSpan={5} className="px-4 py-12 text-center text-steel-400">
+                  No projects yet — create one above or click Sync Zoho Books.
                 </td>
               </tr>
             )}
